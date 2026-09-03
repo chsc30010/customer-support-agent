@@ -1,0 +1,5 @@
+# A call that the agent should resolve on its own. speech_confidence values are
+# what Twilio actually returns for a decent mobile connection.
+{"text": "hi my kitchen camera keeps going offline", "speech_confidence": 0.91}
+{"text": "yes I already did that twice", "speech_confidence": 0.88}
+{"text": "the signal shows two bars", "speech_confidence": 0.84}

@@ -1,0 +1,60 @@
+{"id": "g01", "channel": "sms", "text": "where is my order", "intent": "order_status", "should_escalate": false, "expected_article": "order-tracking"}
+{"id": "g02", "channel": "voice", "text": "hi I ordered a doorbell last friday and it still has not shipped", "intent": "order_status", "should_escalate": false, "expected_article": "order-tracking"}
+{"id": "g03", "channel": "chat", "text": "my tracking number has not updated in five days", "intent": "order_status", "should_escalate": false, "expected_article": "order-tracking"}
+{"id": "g04", "channel": "email", "text": "the app says delivered but there is no parcel at my door", "intent": "order_status", "should_escalate": false, "expected_article": "shipping-delays"}
+{"id": "g05", "channel": "sms", "text": "can I change the delivery address on my order", "intent": "order_status", "should_escalate": false, "expected_article": "shipping-delays"}
+{"id": "g06", "channel": "voice", "text": "when will my camera arrive", "intent": "order_status", "should_escalate": false, "expected_article": "order-tracking"}
+{"id": "g07", "channel": "chat", "text": "my order is nine days past the estimated delivery date", "intent": "order_status", "should_escalate": false, "expected_article": "shipping-delays"}
+{"id": "g08", "channel": "chat", "text": "how do I get a return label", "intent": "returns_refund", "should_escalate": false, "expected_article": "returns-and-refunds"}
+{"id": "g09", "channel": "sms", "text": "I want to send the cam pro back, it is too wide for my hallway", "intent": "returns_refund", "should_escalate": false, "expected_article": "returns-and-refunds"}
+{"id": "g10", "channel": "voice", "text": "how long do I have to return something", "intent": "returns_refund", "should_escalate": false, "expected_article": "returns-and-refunds"}
+{"id": "g11", "channel": "email", "text": "the doorbell arrived cracked and I would like a replacement", "intent": "returns_refund", "should_escalate": false, "expected_article": "returns-and-refunds"}
+{"id": "g12", "channel": "chat", "text": "I want to cancel my order, it has not shipped yet", "intent": "returns_refund", "should_escalate": false, "expected_article": "cancel-an-order"}
+{"id": "g13", "channel": "sms", "text": "when will my refund show up on my card", "intent": "returns_refund", "should_escalate": false, "expected_article": "returns-and-refunds"}
+{"id": "g14", "channel": "voice", "text": "is there a restocking fee if I return it", "intent": "returns_refund", "should_escalate": false, "expected_article": "returns-and-refunds"}
+{"id": "g15", "channel": "chat", "text": "I have been charged twice this month", "intent": "billing", "should_escalate": false, "expected_article": "billing-charges"}
+{"id": "g16", "channel": "voice", "text": "there is a charge on my statement from kestrel home that I do not recognise", "intent": "billing", "should_escalate": false, "expected_article": "billing-charges"}
+{"id": "g17", "channel": "sms", "text": "my card was declined, how do I update my payment method", "intent": "billing", "should_escalate": false, "expected_article": "update-payment-method"}
+{"id": "g18", "channel": "email", "text": "I need an invoice with my company name and VAT number on it", "intent": "billing", "should_escalate": false, "expected_article": "billing-charges"}
+{"id": "g19", "channel": "chat", "text": "what happens if my subscription payment fails", "intent": "billing", "should_escalate": false, "expected_article": "update-payment-method"}
+{"id": "g20", "channel": "voice", "text": "you renewed my plan without asking and I want my money back, this is ridiculous", "intent": "billing", "should_escalate": true}
+{"id": "g21", "channel": "chat", "text": "I forgot my password", "intent": "account_access", "should_escalate": false, "expected_article": "sign-in-problems"}
+{"id": "g22", "channel": "voice", "text": "I am locked out after too many wrong tries", "intent": "account_access", "should_escalate": false, "expected_article": "sign-in-problems"}
+{"id": "g23", "channel": "sms", "text": "my two factor codes are not arriving", "intent": "account_access", "should_escalate": false, "expected_article": "two-factor"}
+{"id": "g24", "channel": "email", "text": "I lost my phone and cannot get my authentication codes any more", "intent": "account_access", "should_escalate": true, "expected_article": "two-factor"}
+{"id": "g25", "channel": "chat", "text": "the email on my account is an old work address I cannot reach any more", "intent": "account_access", "should_escalate": true, "expected_article": "sign-in-problems"}
+{"id": "g26", "channel": "voice", "text": "the app says there is no account with my email address", "intent": "account_access", "should_escalate": false, "expected_article": "sign-in-problems"}
+{"id": "g27", "channel": "voice", "text": "my kitchen camera keeps going offline", "intent": "technical_issue", "should_escalate": false, "expected_article": "camera-offline"}
+{"id": "g28", "channel": "chat", "text": "the camera will not connect to my wifi during setup", "intent": "technical_issue", "should_escalate": false, "expected_article": "camera-offline"}
+{"id": "g29", "channel": "sms", "text": "I am not getting any motion alerts any more", "intent": "technical_issue", "should_escalate": false, "expected_article": "app-notifications"}
+{"id": "g30", "channel": "email", "text": "the app crashes as soon as I open it", "intent": "technical_issue", "should_escalate": false, "expected_article": "app-notifications"}
+{"id": "g31", "channel": "voice", "text": "live view is just a black screen that never loads", "intent": "technical_issue", "should_escalate": false, "expected_article": "app-notifications"}
+{"id": "g32", "channel": "chat", "text": "my battery only lasts about three weeks", "intent": "technical_issue", "should_escalate": false, "expected_article": "battery-power"}
+{"id": "g33", "channel": "sms", "text": "how do I factory reset the camera", "intent": "technical_issue", "should_escalate": false, "expected_article": "camera-offline"}
+{"id": "g34", "channel": "voice", "text": "the doorbell keeps dropping off the network every night", "intent": "technical_issue", "should_escalate": false, "expected_article": "camera-offline"}
+{"id": "g35", "channel": "chat", "text": "I want to cancel my subscription", "intent": "cancellation", "should_escalate": false, "expected_article": "cancel-subscription"}
+{"id": "g36", "channel": "voice", "text": "how do I stop being billed for kestrel cloud", "intent": "cancellation", "should_escalate": false, "expected_article": "cancel-subscription"}
+{"id": "g37", "channel": "sms", "text": "if I cancel my plan do my cameras stop working", "intent": "cancellation", "should_escalate": false, "expected_article": "cancel-subscription"}
+{"id": "g38", "channel": "email", "text": "I would like to close my account entirely", "intent": "cancellation", "should_escalate": false, "expected_article": "cancel-subscription"}
+{"id": "g39", "channel": "chat", "text": "can I pause my plan while I am away for the summer", "intent": "cancellation", "should_escalate": false, "expected_article": "cancel-subscription"}
+{"id": "g40", "channel": "chat", "text": "what is the difference between the cam 2 and the cam pro", "intent": "product_info", "should_escalate": false, "expected_article": "compatibility"}
+{"id": "g41", "channel": "voice", "text": "does it work with apple homekit", "intent": "product_info", "should_escalate": false, "expected_article": "compatibility"}
+{"id": "g42", "channel": "sms", "text": "how much is the family plan", "intent": "product_info", "should_escalate": false, "expected_article": "plans-pricing"}
+{"id": "g43", "channel": "email", "text": "do I need a paid plan to use two way talk", "intent": "product_info", "should_escalate": false, "expected_article": "plans-pricing"}
+{"id": "g44", "channel": "chat", "text": "will the camera survive a canadian winter outdoors", "intent": "product_info", "should_escalate": false, "expected_article": "compatibility"}
+{"id": "g45", "channel": "voice", "text": "is there an rtsp stream on the cam 2", "intent": "product_info", "should_escalate": false, "expected_article": "compatibility"}
+{"id": "g46", "channel": "voice", "text": "this is the fourth time I have called about this and nobody has called me back", "intent": "complaint", "should_escalate": true}
+{"id": "g47", "channel": "chat", "text": "I want to file a formal complaint about how this has been handled", "intent": "complaint", "should_escalate": true}
+{"id": "g48", "channel": "email", "text": "if this is not resolved this week I will be speaking to my lawyer", "intent": "complaint", "should_escalate": true}
+{"id": "g49", "channel": "sms", "text": "this is absolutely unacceptable, I have been waiting three weeks", "intent": "complaint", "should_escalate": true}
+{"id": "g50", "channel": "voice", "text": "your product is garbage and your support is somehow worse", "intent": "complaint", "should_escalate": true}
+{"id": "g51", "channel": "chat", "text": "I am going to report you to the better business bureau", "intent": "complaint", "should_escalate": true}
+{"id": "g52", "channel": "voice", "text": "just put me through to a person please", "intent": "unknown", "should_escalate": true}
+{"id": "g53", "channel": "chat", "text": "can I speak to a supervisor", "intent": "unknown", "should_escalate": true}
+{"id": "g54", "channel": "sms", "text": "agent", "intent": "unknown", "should_escalate": true}
+{"id": "g55", "channel": "chat", "text": "do you have a shop in leeds I can visit", "intent": "unknown", "should_escalate": true}
+{"id": "g56", "channel": "voice", "text": "hello hello is anyone there", "intent": "unknown", "should_escalate": true}
+{"id": "g57", "channel": "sms", "text": "what are your opening hours on christmas day", "intent": "unknown", "should_escalate": true}
+{"id": "g58", "channel": "email", "text": "I would like to become a kestrel reseller in france", "intent": "unknown", "should_escalate": true}
+{"id": "g59", "channel": "chat", "text": "can you recommend a good doorbell chime to go with it", "intent": "unknown", "should_escalate": true}
+{"id": "g60", "channel": "voice", "text": "sorry wrong number", "intent": "unknown", "should_escalate": true}

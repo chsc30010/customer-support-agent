@@ -1,0 +1,4 @@
+# A call that should reach a human quickly. The second turn is a keypress,
+# which is what a caller does when they have stopped listening.
+{"text": "you have charged me twice for the same month and this is the second time it has happened", "speech_confidence": 0.93}
+{"text": "", "digits": "0"}
