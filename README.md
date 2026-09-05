@@ -62,6 +62,10 @@ email with no branch between them.
 | `server.py` | FastAPI: two Twilio webhooks, two JSON endpoints, one health check. |
 | `evals/` | The golden set and the harness. See [evals/README.md](evals/README.md). |
 
+For the product reasoning behind all of this -- who it is for, what it is
+deflecting, and what the numbers are supposed to prove -- see
+[PRD-Customer-Support-Agent.md](PRD-Customer-Support-Agent.md).
+
 ## When it hands over
 
 Seven rules, in order, first match wins. They live in one readable file
