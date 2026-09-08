@@ -9,13 +9,60 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from .config import Settings
+from .models import Channel
 
 log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "claude-opus-5"
+
+#: How long one turn may spend waiting on models, per channel.
+#:
+#: These are dictated by the transport, not by taste. Twilio abandons a voice
+#: webhook at about 15 seconds and drops the call, so on a phone line a slow
+#: model call is not a slow answer -- it is a hung-up customer. Six seconds
+#: leaves room for the reply to be synthesised and still reach Twilio in time.
+#: An email has nobody waiting, so it can afford to be patient.
+TURN_BUDGET_SECONDS: dict[Channel, float] = {
+    Channel.VOICE: 6.0,
+    Channel.SMS: 12.0,
+    Channel.CHAT: 12.0,
+    Channel.EMAIL: 30.0,
+}
+DEFAULT_TURN_BUDGET = 12.0
+
+#: Below this there is no point starting a call: it cannot finish, and the
+#: time spent failing is time the deterministic path could have used.
+MIN_CALL_SECONDS = 1.5
+
+
+@dataclass
+class Deadline:
+    """The model-call budget for one turn, shared by every call in it.
+
+    A turn on the LLM path makes two calls -- classify, then draft -- and they
+    are sequential. Timing them individually is not enough: two calls that each
+    come in under their own limit can still blow the turn. So the budget is
+    owned by the turn and both calls draw down the same clock.
+    """
+
+    budget: float
+    started: float = field(default_factory=time.monotonic)
+
+    @classmethod
+    def for_channel(cls, channel: Channel) -> "Deadline":
+        return cls(TURN_BUDGET_SECONDS.get(channel, DEFAULT_TURN_BUDGET))
+
+    @property
+    def remaining(self) -> float:
+        return max(0.0, self.budget - (time.monotonic() - self.started))
+
+    def allows_call(self, minimum: float = MIN_CALL_SECONDS) -> bool:
+        return self.remaining >= minimum
 
 
 class ClaudeClient:
@@ -65,6 +112,7 @@ class ClaudeClient:
         schema: dict[str, Any],
         effort: str = "low",
         max_tokens: int = 2048,
+        deadline: Deadline | None = None,
     ) -> dict[str, Any] | None:
         """Ask for one JSON object matching ``schema``. ``None`` means fall back.
 
@@ -72,13 +120,27 @@ class ClaudeClient:
         is high volume, latency-sensitive, and the deterministic classifier is
         already close. Answer drafting runs higher, because a wrong answer to a
         customer costs more than the tokens.
+
+        ``deadline`` is the turn's remaining time. Without one the SDK's own
+        default applies, which is ten minutes -- fine for a script, fatal on a
+        phone call.
         """
         if not self.available:
             return None
+        if deadline is not None and not deadline.allows_call():
+            log.warning("skipping model call: %.2fs left in the turn", deadline.remaining)
+            return None
+
+        client = self._client
+        if deadline is not None:
+            # max_retries must go to zero alongside a timeout. The SDK retries
+            # timeouts by default, so a 4 second limit with two retries is a
+            # twelve second call -- which is the bug this is here to prevent.
+            client = client.with_options(timeout=deadline.remaining, max_retries=0)
 
         anthropic = self._anthropic
         try:
-            response = self._client.messages.create(
+            response = client.messages.create(
                 model=self.model,
                 max_tokens=max_tokens,
                 system=system,
@@ -93,6 +155,9 @@ class ClaudeClient:
             return None
         except anthropic.APIStatusError as exc:
             log.warning("Claude returned %s; falling back", exc.status_code)
+            return None
+        except anthropic.APITimeoutError:
+            log.warning("Claude exceeded the turn budget; falling back")
             return None
         except anthropic.APIConnectionError as exc:
             log.warning("Claude unreachable (%s); falling back", exc)

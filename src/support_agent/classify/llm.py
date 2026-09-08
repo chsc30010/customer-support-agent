@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..config import Settings
-from ..llm import ClaudeClient
+from ..llm import ClaudeClient, Deadline
 from ..models import Classification, Conversation, InboundMessage, Intent, Sentiment
 from .base import Classifier
 from .heuristic import HeuristicClassifier
@@ -62,24 +62,34 @@ class LLMClassifier(Classifier):
         self.fallback = fallback or HeuristicClassifier()
 
     def classify(
-        self, message: InboundMessage, conversation: Conversation | None = None
+        self,
+        message: InboundMessage,
+        conversation: Conversation | None = None,
+        deadline: Deadline | None = None,
     ) -> Classification:
+        # Run the deterministic pass first and unconditionally. It costs
+        # microseconds, it is the fallback for every failure below, and its
+        # phrase list for "I want a human" is exhaustive in a way the model's
+        # judgement is not -- so both signals are worth having.
+        baseline = self.fallback.classify(message, conversation)
+
         data = self.client.json_call(
             system=SYSTEM,
             prompt=self._prompt(message, conversation),
             schema=SCHEMA,
             effort="low",
             max_tokens=512,
+            deadline=deadline,
         )
         if data is None:
-            return self.fallback.classify(message, conversation)
+            return baseline
 
         try:
             intent = Intent(data["intent"])
             sentiment = Sentiment(data["sentiment"])
             confidence = max(0.0, min(1.0, float(data["confidence"])))
         except (KeyError, ValueError, TypeError):
-            return self.fallback.classify(message, conversation)
+            return baseline
 
         evidence = tuple(str(e) for e in data.get("evidence", [])[:3])
         return Classification(
@@ -87,10 +97,7 @@ class LLMClassifier(Classifier):
             confidence=round(confidence, 3),
             sentiment=sentiment,
             evidence=evidence,
-            # The heuristic's phrase list is exhaustive for this and cheap to
-            # run, so trust either signal rather than only the model's.
-            wants_human=bool(data.get("wants_human"))
-            or self.fallback.classify(message, conversation).wants_human,
+            wants_human=bool(data.get("wants_human")) or baseline.wants_human,
             source=self.name,
         )
 

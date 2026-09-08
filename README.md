@@ -1,5 +1,7 @@
 # Omnichannel Customer Support Agent
 
+[![CI](https://github.com/chsc30010/customer-support-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/chsc30010/customer-support-agent/actions/workflows/ci.yml)
+
 A support agent that takes phone calls, texts, web chat and email through one
 pipeline, answers from a knowledge base with citations, and hands over to a
 human when it should not be the one answering.
@@ -128,6 +130,16 @@ answerer is instructed to return `answerable: false` rather than improvise.
 Every failure path -- rate limit, connection error, refusal, unparseable output
 -- falls back to the deterministic implementation, so the line degrades in
 quality rather than stopping.
+
+**A turn has a latency budget, and it is per channel.** Classification and
+drafting are two sequential model calls, and the transport does not care which
+of them was slow -- Twilio abandons a voice webhook at about fifteen seconds
+and drops the call. So the budget belongs to the turn rather than to either
+call: voice gets six seconds, email thirty, and both calls draw down the same
+clock. When there is not enough left to finish, the call is not started at all
+and the deterministic path answers instead. Retries are disabled whenever a
+timeout is set, because the SDK retries timeouts by default and a four second
+limit with two retries is a twelve second call.
 
 ## Quick start
 

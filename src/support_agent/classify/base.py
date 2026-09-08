@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from ..llm import Deadline
 from ..models import Classification, Conversation, InboundMessage
 
 
@@ -19,8 +20,14 @@ class Classifier(ABC):
 
     @abstractmethod
     def classify(
-        self, message: InboundMessage, conversation: Conversation | None = None
+        self,
+        message: InboundMessage,
+        conversation: Conversation | None = None,
+        deadline: Deadline | None = None,
     ) -> Classification:
         """Classify ``message``. Must never raise: an unclassifiable message is
         ``Intent.UNKNOWN`` with confidence 0.0, which the policy layer turns
-        into a human handoff."""
+        into a human handoff.
+
+        ``deadline`` is the turn's remaining model-call budget. Deterministic
+        implementations ignore it; the ones that call out honour it."""

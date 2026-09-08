@@ -100,7 +100,8 @@ support-agent kb "my camera will not connect"
 - **No repeating itself.** Passages already used in a conversation are excluded from later turns, so "I already tried that" gets the next step in the article, and running out of article produces an honest handoff instead of the same paragraph again.
 - **Routing on the conversation, not the turn.** The turn that triggers a handoff is usually the least informative one -- a keypress, or "just get me a person" -- so the queue is chosen from what the conversation established.
 - **Webhooks that fail closed.** Twilio signatures verified in fifteen lines of standard library; unsigned requests refused; a 503 rather than silent acceptance when the token and public URL are not both configured. These endpoints accept a phone call and can transfer it.
-- **An eval harness**, scoring routing, escalation and retrieval separately, with a confusion matrix, a failure list, a threshold sweep and non-zero exit codes for CI.
+- **A per-channel latency budget on the model path.** A turn makes two sequential model calls, and on a phone line a slow call is not a slow answer -- Twilio abandons the webhook at about fifteen seconds and the customer is gone. The budget belongs to the turn rather than to either call, voice gets six seconds against thirty for email, and running out means the deterministic path answers rather than the call being started and abandoned.
+- **An eval harness**, scoring routing, escalation and retrieval separately, with a confusion matrix, a failure list, a threshold sweep and non-zero exit codes for CI -- wired to a GitHub Action that gates every push on escalation recall staying at 1.0.
 
 ### 7.3 Technology
 
@@ -117,7 +118,7 @@ Python 3.10+, FastAPI and uvicorn, the official `anthropic` SDK when a model is 
 
 ## 8. Release
 
-**Now (shipped):** All four channels end to end. Twilio voice and SMS webhooks with signature verification, barge-in, DTMF, silence re-prompting, and transfer or enqueue. JSON endpoints for chat and email. Nine intents, four-level sentiment, BM25 retrieval over 15 articles, extractive and Claude-backed answerers, seven escalation rules with queue and priority routing, per-channel rendering, multi-turn state with repetition suppression. 60-case golden set, three-axis eval harness with CI gates, 67 unit tests, CLI with `ask`, `simulate`, `kb` and `serve`. Pushed as its own private repo.
+**Now (shipped):** All four channels end to end. Twilio voice and SMS webhooks with signature verification, barge-in, DTMF, silence re-prompting, and transfer or enqueue. JSON endpoints for chat and email. Nine intents, four-level sentiment, BM25 retrieval over 15 articles, extractive and Claude-backed answerers, seven escalation rules with queue and priority routing, per-channel rendering, multi-turn state with repetition suppression, per-channel latency budget on the model path. 60-case golden set, three-axis eval harness, 80 unit tests, a GitHub Action gating every push on escalation recall at 1.0, CLI with `ask`, `simulate`, `kb` and `serve`.
 
 **Next:** A held-out labelled set that the lexicon was never tuned against, to convert the 96.7% from an upper bound into an estimate. Then run the same 60 cases through the Claude path and put the two side by side -- the whole point of building both was to be able to answer whether the model earns its cost, and that comparison has not been run yet.
 

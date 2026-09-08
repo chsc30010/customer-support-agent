@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from ..llm import Deadline
 from ..models import Answer, Classification, Conversation, Passage
 
 
@@ -22,9 +23,14 @@ class AnswerEngine(ABC):
         passages: list[Passage],
         classification: Classification,
         conversation: Conversation | None = None,
+        deadline: Deadline | None = None,
     ) -> Answer:
         """Draft a reply from ``passages``.
 
         Returning ``Answer(grounded=False)`` is a valid and expected outcome.
         It is the signal that a human should take this one.
+
+        ``deadline`` is whatever is left of the turn's model-call budget after
+        classification. Drafting is the second of the two calls, so it is the
+        one that gets squeezed.
         """

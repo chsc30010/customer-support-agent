@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from ..llm import Deadline
 from ..models import Classification, Conversation, InboundMessage, Intent, Sentiment
 from .base import Classifier
 from .lexicon import (
@@ -107,8 +108,13 @@ class HeuristicClassifier(Classifier):
     name = "heuristic"
 
     def classify(
-        self, message: InboundMessage, conversation: Conversation | None = None
+        self,
+        message: InboundMessage,
+        conversation: Conversation | None = None,
+        deadline: "Deadline | None" = None,
     ) -> Classification:
+        # deadline is accepted and ignored: this path makes no calls, so it
+        # cannot run out of time. It is the thing the budget falls back to.
         text = message.text or ""
         normalized = normalize(text)
         sentiment, sentiment_evidence = score_sentiment(text)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..config import Settings
-from ..llm import ClaudeClient
+from ..llm import ClaudeClient, Deadline
 from ..models import Answer, Channel, Classification, Conversation, Passage
 from .base import AnswerEngine
 from .extractive import ExtractiveAnswerEngine
@@ -66,6 +66,7 @@ class LLMAnswerEngine(AnswerEngine):
         passages: list[Passage],
         classification: Classification,
         conversation: Conversation | None = None,
+        deadline: Deadline | None = None,
     ) -> Answer:
         if not passages:
             return Answer(text="", grounded=False, source=self.name)
@@ -76,8 +77,12 @@ class LLMAnswerEngine(AnswerEngine):
             schema=SCHEMA,
             effort="medium",
             max_tokens=1024,
+            deadline=deadline,
         )
         if data is None:
+            # Covers the out-of-budget case as well as a failed call: the
+            # extractive answer is worse prose but it is instant and grounded,
+            # which on a phone call is the trade you want.
             return self.fallback.answer(question, passages, classification, conversation)
 
         text = str(data.get("answer", "")).strip()

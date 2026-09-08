@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 
 from ..config import Settings
+from ..llm import Deadline
 from ..models import Answer, Channel, Classification, Conversation, Passage
 from .base import AnswerEngine
 
@@ -46,7 +47,9 @@ class ExtractiveAnswerEngine(AnswerEngine):
         passages: list[Passage],
         classification: Classification,
         conversation: Conversation | None = None,
+        deadline: "Deadline | None" = None,
     ) -> Answer:
+        # deadline is accepted and ignored: quoting an article makes no calls.
         if not passages:
             return Answer(text="", grounded=False, source=self.name)
 

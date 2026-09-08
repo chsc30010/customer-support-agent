@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor from pyproject.toml and a current release. Most of the
+        # code is stdlib, so this is cheap insurance against using something
+        # that only exists in the newer one.
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+  evaluate:
+    # Split out from the unit tests so a red build says which kind of thing
+    # broke: the code, or the agent's behaviour.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Score the agent against the golden set
+        # Runs the deterministic path only -- no API key, no cost, no network,
+        # and therefore the same numbers on every run.
+        #
+        # Escalation recall is gated at 1.0 deliberately. It is the one metric
+        # the whole design exists to protect: a miss is a customer who needed a
+        # person and got a confident wrong answer instead. If a lexicon edit
+        # drops it to 94%, that should fail the build rather than get noticed
+        # three weeks later. The other two sit below their current values with
+        # room for label noise on a 60-case set.
+        run: |
+          python evals/run_evals.py \
+            --show-failures \
+            --min-escalation-recall 1.0 \
+            --min-intent-accuracy 0.90 \
+            --min-hit1 0.90
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '## Agent evaluation'
+            echo '```'
+            python evals/run_evals.py --json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

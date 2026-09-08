@@ -15,6 +15,7 @@ from .classify import Classifier, build_classifier
 from .config import Settings
 from .conversations import ConversationStore
 from .kb import BM25Retriever
+from .llm import Deadline
 from .models import (
     AgentReply,
     Answer,
@@ -56,7 +57,12 @@ class SupportAgent:
         )
         conversation.add("customer", message.text)
 
-        classification = self.classifier.classify(message, conversation)
+        # One clock for the whole turn. Classification and drafting are two
+        # sequential model calls on the LLM path, and the transport does not
+        # care which of them was slow -- it only cares that the reply arrived.
+        deadline = Deadline.for_channel(message.channel)
+
+        classification = self.classifier.classify(message, conversation, deadline)
         if classification.intent is not Intent.UNKNOWN:
             conversation.last_intent = classification.intent
 
@@ -65,7 +71,7 @@ class SupportAgent:
         if early is EscalationReason.NONE:
             passages = self._retrieve(conversation, message, classification)
             answer = self.answer_engine.answer(
-                message.text, passages, classification, conversation
+                message.text, passages, classification, conversation, deadline
             )
             if answer.grounded:
                 conversation.served.update(p.key for p in answer.citations)
