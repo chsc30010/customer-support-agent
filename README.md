@@ -62,6 +62,9 @@ email with no branch between them.
 | `render/` | SSML for the phone, 153-character segments for SMS, markdown for chat, a subject line for email. |
 | `telephony/` | Twilio signature verification, TwiML, and the speech seam. |
 | `server.py` | FastAPI: two Twilio webhooks, two JSON endpoints, one health check. |
+| `journal.py` | One JSONL line per turn: what was decided and why. Off by default, redacted by default. |
+| `gaps.py` | Turns the unanswered contacts into a ranked work list for whoever writes the help centre. |
+| `shadow.py` | Replays recorded turns through the model path and diffs the outcome, offline. |
 | `evals/` | The golden set and the harness. See [evals/README.md](evals/README.md). |
 
 For the product reasoning behind all of this -- who it is for, what it is
@@ -141,6 +144,56 @@ and the deterministic path answers instead. Retries are disabled whenever a
 timeout is set, because the SDK retries timeouts by default and a four second
 limit with two retries is a twelve second call.
 
+## Telling you what to write next
+
+Set `DECISION_LOG` and every turn is appended to a JSONL file -- intent,
+confidence, the escalation reason, which article was cited, which articles were
+merely offered, how long it took. Emails, phone numbers and card-shaped digit
+runs are masked on the way in.
+
+That file is what makes the agent improve rather than just run:
+
+```bash
+support-agent gaps --journal decisions.jsonl
+```
+
+groups the contacts it could not answer and ranks them by how often they came
+up. It separates two failures that look identical from the outside and need
+opposite fixes -- **content gaps**, where nothing in the help centre covers the
+question and somebody has to write an article, and **recognition gaps**, where
+an article answers it perfectly well but the classifier never worked out what
+was being asked, so retrieval never got a chance. Sending a content writer off
+to write an article that already exists is a good way to have them stop reading
+your reports.
+
+```
+1. 2 contacts  [chatx1, smsx1]
+   "is there a store near me I can visit"
+   also: "do you have a shop in leeds I can visit"
+   -> CONTENT GAP. Nothing in the help centre is even close.
+```
+
+Grouping is lexical, so "shop" and "store" and "showroom" do not always land
+together. Rather than pretend otherwise, the report lists what it could not
+group so a human can spot the themes a word-overlap measure cannot.
+
+## Does the model actually help?
+
+```bash
+support-agent shadow --journal decisions.jsonl
+```
+
+replays recorded turns through the model path and diffs the result against what
+was actually served. Deliberately offline: running both paths live to collect
+the comparison would double the latency of a phone call and make the customer
+pay for the experiment. A hung-up customer has already left, so replaying costs
+them nothing, and it can be re-run against a different model at any time.
+
+The agreement rate is the least interesting number it prints. The two lists
+underneath are the point: contacts the agent answered that the model thought a
+human should have taken, and escalations the model would have handled. Read the
+first one first.
+
 ## Quick start
 
 ```bash
@@ -150,6 +203,9 @@ python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 support-agent ask "how do I get a return label" --channel chat
 support-agent simulate fixtures/transcripts/call-camera-offline.jsonl --channel voice
 support-agent kb "my camera will not connect"
+
+DECISION_LOG=decisions.jsonl support-agent ask "do you have a shop in leeds" --channel chat
+support-agent gaps --journal decisions.jsonl
 
 python evals/run_evals.py --show-failures --sweep
 python -m pytest
@@ -197,11 +253,14 @@ capability rather than crashing the agent. The three that change behaviour:
 | `MIN_INTENT_CONFIDENCE` | `0.35` | Below this the agent hands over instead of guessing. |
 | `MIN_RETRIEVAL_SCORE` | `2.5` | Below this there is nothing to ground an answer in. `--sweep` shows the tradeoff. |
 | `MAX_TURNS_BEFORE_HANDOFF` | `4` | Customer turns before it stops trying. |
+| `DECISION_LOG` | unset | Path to the decision journal. Unset means nothing is recorded. |
+| `JOURNAL_REDACT` | `1` | Mask emails, phone numbers and card-shaped digits before writing. |
 
 ## What this does not do
 
 - **No tool actions.** It cannot look up an order, issue a refund or open a ticket. It answers from the help centre and routes everything else. Adding actions means adding a permission policy and an audit log, which is a larger piece of work than it looks.
 - **Conversations live in one process.** `ConversationStore` is an in-memory dict with a two hour TTL. Running more than one worker means replacing that one file with Redis, and nothing else.
+- **Gap clustering does not understand synonyms.** It weights rare shared words above common ones, which recovers some of it, but "shop" and "store" still land apart. This is the piece to replace with embeddings once the volume justifies it; the report lists what it could not group rather than hiding it.
 - **The handoff is a transfer, not an integration.** An escalated call is dialled or queued; no ticket is created in a CRM. The `Escalation` object carries everything such an integration would need.
 - **The knowledge base is 15 articles for one fictional company.** Swapping in a real one means replacing `kb/articles/` and relabelling the golden set.
 - **Multi-turn behaviour is not scored.** The golden set is single-turn. The agent has specific behaviour for later turns -- suppressing passages it has already used, carrying intent across a short follow-up -- and `fixtures/transcripts/` is for looking at that by hand.

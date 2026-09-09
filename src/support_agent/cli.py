@@ -111,6 +111,49 @@ def cmd_kb(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gaps(args: argparse.Namespace) -> int:
+    """Report what the knowledge base could not answer, most frequent first."""
+    from .gaps import find_gaps, render
+
+    path = Path(args.journal)
+    if not path.exists():
+        print(
+            f"No journal at {path}. Set DECISION_LOG and take some contacts first.",
+            file=sys.stderr,
+        )
+        return 1
+
+    settings = Settings.from_env()
+    gaps, singles, examined = find_gaps(
+        path, settings, threshold=args.similarity, min_size=args.min_cluster
+    )
+    print(render(gaps, singles, examined, settings.min_retrieval_score))
+    return 0
+
+
+def cmd_shadow(args: argparse.Namespace) -> int:
+    """Replay recorded turns through the model path and diff the outcome."""
+    from .shadow import render, replay
+
+    path = Path(args.journal)
+    if not path.exists():
+        print(f"No journal at {path}.", file=sys.stderr)
+        return 1
+
+    settings = Settings.from_env()
+    if not settings.llm_enabled:
+        print(
+            "LLM_PROVIDER is not set to anthropic, or no credentials were found. "
+            "A replay without a model compares the deterministic path with "
+            "itself, which tells you nothing.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(render(replay(path, settings, limit=args.limit), settings))
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -151,6 +194,19 @@ def main(argv: list[str] | None = None) -> int:
     kb.add_argument("query")
     kb.add_argument("--top-k", type=int, default=3)
     kb.set_defaults(func=cmd_kb)
+
+    from .gaps import MIN_CLUSTER, SIMILARITY
+
+    gaps = sub.add_parser("gaps", help="what the knowledge base could not answer")
+    gaps.add_argument("--journal", default="decisions.jsonl")
+    gaps.add_argument("--min-cluster", type=int, default=MIN_CLUSTER)
+    gaps.add_argument("--similarity", type=float, default=SIMILARITY)
+    gaps.set_defaults(func=cmd_gaps)
+
+    shadow = sub.add_parser("shadow", help="replay the journal through the model")
+    shadow.add_argument("--journal", default="decisions.jsonl")
+    shadow.add_argument("--limit", type=int, default=None)
+    shadow.set_defaults(func=cmd_shadow)
 
     serve = sub.add_parser("serve", help="run the webhook server")
     serve.add_argument("--host", default="127.0.0.1")

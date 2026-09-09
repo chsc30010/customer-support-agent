@@ -61,6 +61,11 @@ class Settings:
 
     company_name: str = "Kestrel Home"
 
+    # Decision journal. Empty path means off, which is the default: recording
+    # what customers said is a choice an operator should make deliberately.
+    decision_log: str = ""
+    journal_redact: bool = True
+
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
@@ -76,6 +81,8 @@ class Settings:
             min_retrieval_score=_float("MIN_RETRIEVAL_SCORE", 2.5),
             max_turns_before_handoff=_int("MAX_TURNS_BEFORE_HANDOFF", 4),
             company_name=os.getenv("COMPANY_NAME", "Kestrel Home").strip(),
+            decision_log=os.getenv("DECISION_LOG", "").strip(),
+            journal_redact=_bool("JOURNAL_REDACT", True),
         )
 
     @property

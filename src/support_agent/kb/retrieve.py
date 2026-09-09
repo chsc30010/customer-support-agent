@@ -37,8 +37,16 @@ STOPWORDS = frozenset(
     to in on at for with from by as about into over after before under can could
     will would should shall may might must not no so very just get got there here
     what when where which who whom how why any some all each other more most
-    please thanks thank hi hello hey ok okay yes yeah""".split()
+    please thanks thank hi hello hey ok okay yes yeah
+    come comes came coming want wants wanted need needs needed like know tell
+    told look looking try trying think thing things really actually""".split()
 )
+# The second block is verbs and nouns that carry no topic: every support
+# contact contains several of them. They were costing retrieval precision and,
+# once the gap report started clustering on shared words, actively grouping
+# "does the doorbell come in matte black" with "do you have a showroom I could
+# come and look at". Deliberately excludes "much", which "how much is the
+# family plan" depends on.
 
 _WORD = re.compile(r"[a-z0-9]+")
 _DOUBLED = re.compile(r"([bcdfghjklmnpqrstvwz])\1$")

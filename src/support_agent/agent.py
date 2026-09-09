@@ -8,12 +8,14 @@ a phone call and an email without a branch.
 from __future__ import annotations
 
 import logging
+import time
 
 from . import phrases, policy
 from .answer import AnswerEngine, build_answer_engine
 from .classify import Classifier, build_classifier
 from .config import Settings
 from .conversations import ConversationStore
+from .journal import DecisionJournal
 from .kb import BM25Retriever
 from .llm import Deadline
 from .models import (
@@ -41,12 +43,16 @@ class SupportAgent:
         retriever: BM25Retriever | None = None,
         answer_engine: AnswerEngine | None = None,
         store: ConversationStore | None = None,
+        journal: DecisionJournal | None = None,
     ) -> None:
         self.settings = settings or Settings.from_env()
         self.classifier = classifier or build_classifier(self.settings)
         self.retriever = retriever or BM25Retriever()
         self.answer_engine = answer_engine or build_answer_engine(self.settings)
         self.store = store or ConversationStore()
+        self.journal = journal or DecisionJournal(
+            self.settings.decision_log, self.settings.journal_redact
+        )
 
     def greeting(self, channel) -> str:
         return phrases.GREETING[channel]
@@ -56,6 +62,7 @@ class SupportAgent:
             message.conversation_id, message.channel, message.sender
         )
         conversation.add("customer", message.text)
+        started = time.monotonic()
 
         # One clock for the whole turn. Classification and drafting are two
         # sequential model calls on the LLM path, and the transport does not
@@ -67,9 +74,14 @@ class SupportAgent:
             conversation.last_intent = classification.intent
 
         answer: Answer | None = None
+        offered: list[str] = []
         early = policy.pre_answer_reason(classification, self.settings)
         if early is EscalationReason.NONE:
             passages = self._retrieve(conversation, message, classification)
+            # Recorded whether or not anything cleared the grounding floor.
+            # When a contact goes unanswered, the near misses are what say
+            # whether an article was missing or merely worded badly.
+            offered = [p.article_id for p in passages]
             answer = self.answer_engine.answer(
                 message.text, passages, classification, conversation, deadline
             )
@@ -95,7 +107,7 @@ class SupportAgent:
                 escalation.priority,
             )
 
-        return AgentReply(
+        reply = AgentReply(
             conversation_id=conversation.id,
             channel=conversation.channel,
             text=text,
@@ -104,6 +116,14 @@ class SupportAgent:
             escalation=escalation,
             expects_reply=not escalation.escalate,
         )
+        self.journal.record(
+            message,
+            reply,
+            conversation,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            retrieved=offered,
+        )
+        return reply
 
     def _retrieve(self, conversation, message, classification):
         """Retrieve, minus anything this conversation has already been told.
