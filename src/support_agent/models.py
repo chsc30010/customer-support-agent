@@ -117,6 +117,10 @@ class Conversation:
     customer_ref: str = ""
     turns: list[Turn] = field(default_factory=list)
     started_at: datetime = field(default_factory=_now)
+    #: When the last turn was added. Expiry counts from this, not from
+    #: started_at: an SMS thread can run all afternoon, and a conversation that
+    #: is still going must not be thrown away for having started early.
+    last_activity: datetime = field(default_factory=_now)
     escalated: bool = False
     closed: bool = False
     #: Intent carried over from the previous turn, so a bare "yes" or
@@ -127,7 +131,9 @@ class Conversation:
     served: set[str] = field(default_factory=set)
 
     def add(self, role: str, text: str) -> None:
-        self.turns.append(Turn(role=role, text=text))
+        turn = Turn(role=role, text=text)
+        self.turns.append(turn)
+        self.last_activity = turn.at
 
     @property
     def customer_turns(self) -> list[Turn]:
