@@ -38,8 +38,17 @@ def test_running_out_of_article_hands_over_rather_than_repeating():
         say(bot, "still the same"),
         say(bot, "and again"),
     ]
-    assert replies[-1].escalated
-    assert replies[-1].escalation.queue is Queue.TECHNICAL
+    answered, tried, exhausted, after = replies
+    assert not answered.escalated and not tried.escalated
+    # The handoff happens the moment the article runs out.
+    assert exhausted.escalated
+    assert exhausted.escalation.reason is EscalationReason.NO_GROUNDING
+    assert exhausted.escalation.queue is Queue.TECHNICAL
+    # And the conversation then stays with that person. This test used to
+    # assert that the fourth turn escalated too, which only passed because an
+    # escalated conversation kept running through the bot and escalated again.
+    assert not after.escalated
+    assert after.classification.source == "held_for_person"
 
 
 def test_context_carries_across_turns():
@@ -87,3 +96,50 @@ def test_every_channel_has_a_greeting():
     bot = agent()
     for channel in Channel:
         assert bot.greeting(channel)
+
+
+def test_a_message_after_a_handoff_is_held_for_the_person():
+    bot = agent()
+    handoff = say(bot, "just get me a person please", channel=Channel.SMS)
+    assert handoff.escalated
+
+    follow_up = say(bot, "also where is my order", channel=Channel.SMS)
+    assert not follow_up.escalated  # no second escalation
+    assert follow_up.answer is None  # nothing was looked up or answered
+    assert follow_up.classification.source == "held_for_person"
+    assert "someone from our team has this conversation" in follow_up.text.lower()
+
+
+def test_a_handed_over_conversation_never_files_another_escalation():
+    bot = agent()
+    say(bot, "just get me a person please", channel=Channel.SMS)
+    # Before the fix the looping rule re-escalated every text from the fourth
+    # customer turn onwards, flooding the queue with duplicates.
+    later = [say(bot, f"any news on this {n}", channel=Channel.SMS) for n in range(6)]
+    assert not any(reply.escalated for reply in later)
+
+
+def test_held_messages_stay_on_the_transcript_for_the_person():
+    bot = agent()
+    say(bot, "just get me a person please", channel=Channel.SMS)
+    say(bot, "my order number is 4471", channel=Channel.SMS)
+    assert "my order number is 4471" in bot.store.get("c").transcript()
+
+
+def test_a_caller_already_being_transferred_is_told_so():
+    bot = agent()
+    say(bot, "put me through to a person", channel=Channel.VOICE, conversation_id="call")
+    reply = say(bot, "hello?", channel=Channel.VOICE, conversation_id="call")
+    assert "already being connected" in reply.text
+
+
+def test_a_held_message_is_journaled_as_held(tmp_path):
+    from support_agent.journal import DecisionJournal, read_decisions
+
+    path = tmp_path / "decisions.jsonl"
+    bot = SupportAgent(settings=Settings(), journal=DecisionJournal(path))
+    say(bot, "just get me a person please", channel=Channel.SMS)
+    say(bot, "any update", channel=Channel.SMS)
+    rows = list(read_decisions(path))
+    assert [row.classifier for row in rows] == ["heuristic", "held_for_person"]
+    assert rows[1].escalated is False

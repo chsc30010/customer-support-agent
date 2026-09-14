@@ -34,6 +34,14 @@ TRANSFER = {
     False: "I have passed this to our team and someone will come back to you shortly.",
 }
 
+#: Said when a conversation already handed to a person gets another message.
+#: The customer is not starting over and must not be treated as if they were:
+#: the bot has stepped aside, and the message goes to whoever has the contact.
+WITH_A_PERSON = {
+    True: "You are already being connected to someone, and they will have your message.",
+    False: "Someone from our team has this conversation now and will reply here. I have added your message for them.",
+}
+
 FOLLOW_UP = {
     Channel.VOICE: "Does that sort it, or is there something else?",
     Channel.CHAT: "Does that help?",
