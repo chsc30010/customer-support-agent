@@ -16,7 +16,7 @@ Every support-bot demo answers the happy path. The failure that matters in produ
 
 Two things in this workspace led here. The LLM Eval Pipeline established that a component nobody measures is a component nobody can improve -- it exists specifically so a prompt change can be scored instead of eyeballed. The Job Signal Agent then applied that to a real ranker and found two bugs the eval caught and manual testing had not. This project takes the same discipline into a domain where being wrong has an actual cost to somebody other than me.
 
-Why now, and why voice specifically: most of the "AI support agent" work I have seen treats voice as text with a phone number attached. It isn't. A URL is useless out loud, an order reference has to be spelled rather than pronounced, a caller needs a pause to interrupt at, and a speech recogniser hands you a transcript with a confidence score that a text channel never has. I wanted to find out how much of that is real engineering and how much is hand-waving. It is mostly real, and it all lives in about 120 lines.
+Why now, and why voice specifically: most of the "AI support agent" work I have seen treats voice as text with a phone number attached. It isn't. A URL is useless out loud, an order reference has to be spelled rather than pronounced, a caller needs a pause to interrupt at, and a speech recogniser hands you a transcript with a confidence score that a text channel never has. I wanted to find out how much of that is real engineering and how much is hand-waving. It is mostly real, and it all lives in just over a hundred lines.
 
 ## 4. Objective
 
@@ -28,7 +28,7 @@ The second clause is the constraint the whole design serves. A deflection rate i
 - Escalation recall of 100% (18/18). Every contact a support lead labelled as needing a human reached a human.
 - Intent accuracy of 96.7% (58/60) across nine intents and four channels.
 - 88.1% of answerable contacts resolved from the correct help centre article (37/42).
-- Escalation precision of 85.7% -- three unnecessary transfers out of 42 answerable contacts. This is the number to improve; recall is the number to hold.
+- Escalation precision of 90.0% -- two unnecessary transfers out of 42 answerable contacts, down from three once function words like "come" and "need" stopped being treated as topic words. This is the number to improve; recall is the number to hold.
 - The full pipeline runs with no credentials, no network and no vendor account, so the baseline is reproducible by anyone who clones it.
 
 **Key Results (targets for a real deployment, not yet measured):**
@@ -57,7 +57,7 @@ Being honest about scope: this has not run a single contact of real traffic. It 
 - A handoff that arrives with a summary the receiving agent reads in two seconds -- intent, sentiment, why the bot gave up, what the customer opened with and last said -- plus the transcript. Nobody is asked to explain twice.
 - Every answer cites the article and section it came from, so a wrong answer is traceable to a content problem rather than to a black box.
 - An escalation policy of seven ordered rules in one readable file, which a support lead can audit without being able to write Python.
-- A number for the claim. "It escalates appropriately" is an opinion; 100% recall at 85.7% precision on 60 labelled contacts is a measurement, and the harness shows the five cases it got wrong.
+- A number for the claim. "It escalates appropriately" is an opinion; 100% recall at 90.0% precision on 60 labelled contacts is a measurement, and the harness names the three contacts it got wrong.
 
 **Pains avoided:**
 - The confident wrong answer. The answerer can only emit sentences that exist in an article, and when nothing supports an answer the contact goes to a person rather than to an improvised one.
@@ -65,7 +65,7 @@ Being honest about scope: this has not run a single contact of real traffic. It 
 - A voice experience that reads URLs aloud, pronounces "KH-482913" as a number, and talks over the caller with no pause to interrupt at.
 - Being locked to one model vendor, or to any vendor: the deterministic path is a complete working system, and the language model is an upgrade to it rather than a dependency of it.
 
-**Why this over the alternatives:** Intercom Fin, Zendesk AI and Ada all do a version of this and do it well. What I could not find in any of them is a legible answer to "under exactly what conditions will you not answer, and what is your measured miss rate on that?" -- the escalation logic is a confidence slider and a promise. That question is the product here. This is also self-hosted, which matters for a support org that would rather not send every customer transcript to a third party, and it is roughly 2,500 lines rather than a platform.
+**Why this over the alternatives:** Intercom Fin, Zendesk AI and Ada all do a version of this and do it well. What I could not find in any of them is a legible answer to "under exactly what conditions will you not answer, and what is your measured miss rate on that?" -- the escalation logic is a confidence slider and a promise. That question is the product here. This is also self-hosted, which matters for a support org that would rather not send every customer transcript to a third party, and it is roughly 3,200 lines rather than a platform.
 
 ## 7. Solution
 
@@ -85,9 +85,11 @@ For development there is a CLI, because iterating on a support agent through an 
 support-agent ask "my kitchen camera keeps going offline" --channel voice
 support-agent simulate fixtures/transcripts/call-angry-billing.jsonl --channel voice
 support-agent kb "my camera will not connect"
+support-agent gaps --journal decisions.jsonl
+support-agent shadow --journal decisions.jsonl
 ```
 
-`simulate` replays a scripted call turn by turn, including keypresses and low-confidence transcripts, through exactly the same code the phone leg uses.
+`simulate` replays a scripted call turn by turn, including keypresses and low-confidence transcripts, through exactly the same code the phone leg uses. `gaps` reads the decision journal and lists what the help centre could not answer, most frequent first; `shadow` replays the same journal through the model path to show where it would have decided differently.
 
 ### 7.2 Key Features
 
@@ -107,7 +109,7 @@ support-agent kb "my camera will not connect"
 
 ### 7.3 Technology
 
-Python 3.10+, FastAPI and uvicorn, the official `anthropic` SDK when a model is configured, `requests` and `python-dotenv`. No Twilio SDK -- TwiML is four XML tags and signature verification is `hmac` -- and no vector database, because 52 passages do not need one. Conversation state is an in-memory dict with a two-hour TTL. `pytest` for the 67 unit tests.
+Python 3.10+, FastAPI and uvicorn, the official `anthropic` SDK when a model is configured, `requests` and `python-dotenv`. No Twilio SDK -- TwiML is four XML tags and signature verification is `hmac` -- and no vector database, because 52 passages do not need one. Conversation state is an in-memory dict with a two-hour TTL. `pytest` for the 110 unit tests.
 
 ### 7.4 Assumptions
 
@@ -120,7 +122,7 @@ Python 3.10+, FastAPI and uvicorn, the official `anthropic` SDK when a model is 
 
 ## 8. Release
 
-**Now (shipped):** All four channels end to end. Twilio voice and SMS webhooks with signature verification, barge-in, DTMF, silence re-prompting, and transfer or enqueue. JSON endpoints for chat and email. Nine intents, four-level sentiment, BM25 retrieval over 15 articles, extractive and Claude-backed answerers, seven escalation rules with queue and priority routing, per-channel rendering, multi-turn state with repetition suppression, per-channel latency budget on the model path. 60-case golden set, three-axis eval harness, 80 unit tests, a GitHub Action gating every push on escalation recall at 1.0, CLI with `ask`, `simulate`, `kb` and `serve`.
+**Now (shipped):** All four channels end to end. Twilio voice and SMS webhooks with signature verification, barge-in, DTMF, silence re-prompting, and transfer or enqueue. JSON endpoints for chat and email. Nine intents, four-level sentiment, BM25 retrieval over 15 articles, extractive and Claude-backed answerers, seven escalation rules with queue and priority routing, per-channel rendering, multi-turn state with repetition suppression, per-channel latency budget on the model path. A redacted decision journal, a knowledge-gap report that separates missing articles from missing phrasing, and an offline shadow replay against the model path. 60-case golden set, three-axis eval harness, 110 unit tests, a GitHub Action gating every push on escalation recall at 1.0, CLI with `ask`, `simulate`, `kb`, `gaps`, `shadow` and `serve`.
 
 **Next:** A held-out labelled set that the lexicon was never tuned against, to convert the 96.7% from an upper bound into an estimate -- the decision journal now makes it possible to draw that set from real contacts instead of inventing more. Then run the shadow replay with a key: both implementations exist so that "does the model earn its cost?" is answerable, the machinery to answer it is now built, and the answer is still unknown because it has not been run against a real model once.
 
