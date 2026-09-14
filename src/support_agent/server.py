@@ -91,6 +91,21 @@ def create_app(
             }
         )
 
+    def callback(path: str, query: str = "") -> str:
+        """The URL Twilio should call back on for the next voice turn.
+
+        Built from PUBLIC_BASE_URL -- the same base the signature check uses --
+        so the URL Twilio calls is exactly the URL the app verifies. These used
+        to be root-relative, and under a path prefix Twilio resolved them
+        against the host root: the prefix dropped out, the callback 404'd or
+        failed verification, and the call ended after the greeting. With no
+        base URL configured (local testing with unsigned webhooks) they stay
+        relative.
+        """
+        if settings.public_base_url:
+            return signature.canonical_url(settings.public_base_url, path, query)
+        return f"{path}?{query}" if query else path
+
     @app.post("/twilio/voice")
     async def voice(request: Request) -> Response:
         await twilio_form(request, "/twilio/voice")
@@ -106,7 +121,7 @@ def create_app(
         # what they want can talk over it instead of waiting it out.
         return _twiml(
             twiml.voice_response(
-                twiml.gather("/twilio/voice/turn", speech.speak(greeting))
+                twiml.gather(callback("/twilio/voice/turn"), speech.speak(greeting))
             )
         )
 
@@ -135,7 +150,8 @@ def create_app(
             return _twiml(
                 twiml.voice_response(
                     twiml.gather(
-                        f"/twilio/voice/turn?empty={empty}", speech.speak(prompt)
+                        callback("/twilio/voice/turn", f"empty={empty}"),
+                        speech.speak(prompt),
                     )
                 )
             )
@@ -155,7 +171,7 @@ def create_app(
         if reply.escalated:
             return _twiml(twiml.voice_response(spoken, transfer(reply)))
         return _twiml(
-            twiml.voice_response(twiml.gather("/twilio/voice/turn", spoken))
+            twiml.voice_response(twiml.gather(callback("/twilio/voice/turn"), spoken))
         )
 
     _register_text_routes(app, agent, twilio_form)
