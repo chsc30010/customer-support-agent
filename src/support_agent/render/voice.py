@@ -46,9 +46,20 @@ MAX_SPOKEN_WORDS = 18
 LINK_SUBSTITUTE = "I can text you the link if that helps"
 
 
+#: Each key matches only as a whole token: not preceded by a letter, digit,
+#: underscore or dot, and not followed by a letter, digit or underscore. The
+#: patterns used to match anywhere, so any word merely containing a key was
+#: rewritten -- "activate" came out as "actiV A Te" and "12K" as "1two K". The
+#: dot guard keeps "5GHz" from matching inside "2.5GHz".
+_PRONUNCIATION_PATTERNS = tuple(
+    (re.compile(r"(?<![\w.])" + re.escape(written) + r"(?!\w)", re.IGNORECASE), spoken)
+    for written, spoken in PRONUNCIATION.items()
+)
+
+
 def _despell(text: str) -> str:
-    for written, spoken in PRONUNCIATION.items():
-        text = re.sub(re.escape(written), spoken, text, flags=re.IGNORECASE)
+    for pattern, spoken in _PRONUNCIATION_PATTERNS:
+        text = pattern.sub(spoken, text)
     return text
 
 
