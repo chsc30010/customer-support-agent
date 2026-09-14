@@ -214,4 +214,9 @@ class HeuristicClassifier(Classifier):
         heard = message.speech_confidence
         if heard is None or heard >= 0.6:
             return confidence
-        return confidence * (0.5 + heard)
+        # Scales from half, at total uncertainty, up to exactly 1.0 at the
+        # threshold, so it can only ever lower confidence. It used to be
+        # 0.5 + heard, which rose above 1 between 0.5 and 0.6 -- a
+        # borderline-misheard phrase outscored the same phrase heard clearly,
+        # could pass 1.0, and the factor jumped from 1.09 back to 1.0 at 0.6.
+        return confidence * max(0.5, heard / 0.6)
