@@ -48,6 +48,43 @@ def test_asking_for_a_supervisor_asks_for_a_human():
     assert classifier.classify(message("can I speak to a supervisor")).wants_human
 
 
+def test_mentioning_an_agent_is_not_asking_for_one():
+    narrative = [
+        "The agent I spoke to yesterday said my refund was processed, when will it show up?",
+        "I emailed customer service last week about my order status",
+        "your representative told me the camera was covered by the warranty",
+        "the supervisor on the phone promised me a replacement",
+        "the operator said my order had shipped",
+        "your agents keep telling me different things about my refund",
+    ]
+    for text in narrative:
+        assert not classifier.classify(message(text)).wants_human, text
+
+
+def test_a_lone_request_for_a_person_still_counts():
+    # A caller who says only "agent" is the case the bare entry was added for.
+    for text in [
+        "agent",
+        "Agent please",
+        "a person please",
+        "just a human",
+        "representative",
+        "operator",
+        "customer service",
+    ]:
+        assert classifier.classify(message(text)).wants_human, text
+
+
+def test_request_shaped_phrases_still_count():
+    for text in [
+        "I want to speak to customer service",
+        "can I talk to a representative",
+        "get me an agent",
+        "put me through to someone",
+    ]:
+        assert classifier.classify(message(text)).wants_human, text
+
+
 def test_sentiment_grades_heat():
     assert score_sentiment("thanks, that worked perfectly")[0] is Sentiment.POSITIVE
     assert score_sentiment("my order is late")[0] is Sentiment.NEUTRAL

@@ -238,20 +238,30 @@ INTENT_PHRASES: dict[Intent, dict[str, float]] = {
 }
 
 #: Phrases that mean "stop talking to me, robot". Any hit forces a handoff
-#: regardless of how confident the classifier is about the intent.
+#: regardless of how confident the classifier is about the intent, so every
+#: entry has to be shaped like a request. A bare noun is not one: "agent" used
+#: to be on this list, and "the agent I spoke to yesterday said my refund was
+#: processed" was handed straight to a human instead of being answered. Bare
+#: nouns live in HUMAN_REQUEST_ALONE below, and count only on their own.
 HUMAN_REQUEST_PHRASES: tuple[str, ...] = (
-    "agent",
     "get me a person",
     "get me a human",
     "get me someone",
+    "get me an agent",
+    "get me a supervisor",
     "person please",
     "human please",
     "actual person",
     "real human",
+    "want a person",
+    "want a human",
+    "want an agent",
+    "need a person",
+    "need a human",
+    "need an agent",
     "speak with a human",
     "speak with someone",
     "talk with someone",
-    "customer service",
     "speak to a human",
     "talk to a human",
     "speak to a person",
@@ -262,17 +272,50 @@ HUMAN_REQUEST_PHRASES: tuple[str, ...] = (
     "talk to an agent",
     "live agent",
     "human agent",
-    "customer service rep",
-    "representative",
-    "supervisor",
+    "speak to a supervisor",
+    "talk to a supervisor",
+    "speak to a representative",
+    "talk to a representative",
+    "speak to an operator",
+    "talk to an operator",
+    "speak to customer service",
+    "talk to customer service",
+    "speak to a customer service rep",
+    "talk to a customer service rep",
     "your manager",
     "speak to a manager",
-    "operator",
     "transfer me",
     "put me through",
     "stop the bot",
     "not a robot",
     "im done with this bot",
+)
+
+#: Words that ask for a person only when they are effectively the whole
+#: message -- a caller who says just "agent", or types "a person please".
+#: Compared after dropping REQUEST_FILLER, so "agent please" counts and "the
+#: agent told me" does not.
+HUMAN_REQUEST_ALONE: frozenset[str] = frozenset(
+    {
+        "agent",
+        "human",
+        "person",
+        "someone",
+        "operator",
+        "representative",
+        "rep",
+        "supervisor",
+        "manager",
+        "customer service",
+        "real person",
+        "live agent",
+        "human agent",
+    }
+)
+
+#: Politeness and articles that do not change what a short request means.
+REQUEST_FILLER: frozenset[str] = frozenset(
+    {"please", "pls", "plz", "just", "now", "a", "an", "the"}
 )
 
 ANGRY_TERMS: tuple[str, ...] = (

@@ -15,9 +15,11 @@ from .base import Classifier
 from .lexicon import (
     ANGRY_TERMS,
     FRUSTRATED_TERMS,
+    HUMAN_REQUEST_ALONE,
     HUMAN_REQUEST_PHRASES,
     INTENT_PHRASES,
     POSITIVE_TERMS,
+    REQUEST_FILLER,
 )
 
 _APOSTROPHES = str.maketrans("", "", "'\u2019\u02bc")
@@ -107,6 +109,20 @@ def score_sentiment(text: str) -> tuple[Sentiment, tuple[str, ...]]:
 class HeuristicClassifier(Classifier):
     name = "heuristic"
 
+    @staticmethod
+    def _asks_for_a_person(normalized: str) -> bool:
+        """Is this message a request to be put through to a person?
+
+        Either it contains a request-shaped phrase ("speak to a supervisor"),
+        or the whole message is essentially the word on its own ("agent", "a
+        person please"). A bare noun used to count anywhere in a message, so a
+        customer who merely mentioned an agent was handed off.
+        """
+        if any(m.search(normalized) for m, _ in _HUMAN_MATCHERS):
+            return True
+        words = [w for w in normalized.split() if w not in REQUEST_FILLER]
+        return " ".join(words) in HUMAN_REQUEST_ALONE
+
     def classify(
         self,
         message: InboundMessage,
@@ -118,8 +134,8 @@ class HeuristicClassifier(Classifier):
         text = message.text or ""
         normalized = normalize(text)
         sentiment, sentiment_evidence = score_sentiment(text)
-        wants_human = message.digits.strip() == "0" or any(
-            m.search(normalized) for m, _ in _HUMAN_MATCHERS
+        wants_human = message.digits.strip() == "0" or self._asks_for_a_person(
+            normalized
         )
 
         scores: dict[Intent, float] = {}
