@@ -154,3 +154,43 @@ def test_email_gets_a_subject_line(client):
         json={"from": "a@example.test", "subject": "Return", "body": "how do I return the doorbell"},
     ).json()
     assert body["subject"].startswith("Re: ")
+
+
+def test_chats_without_an_id_are_kept_apart(client):
+    first = client.post("/chat", json={"text": "how do I get a return label"}).json()
+    second = client.post("/chat", json={"text": "just get me a person please"}).json()
+    assert first["conversation_id"] != second["conversation_id"]
+    assert second["escalation"]["escalate"] is True
+    # The handoff must carry only this customer's words, never another's.
+    assert "return label" not in second["escalation"]["transcript"]
+
+
+def test_a_new_chat_id_can_be_sent_back_to_continue(client):
+    first = client.post("/chat", json={"text": "I want to cancel my subscription"}).json()
+    follow_up = client.post(
+        "/chat",
+        json={"conversation_id": first["conversation_id"], "text": "will I lose my recordings"},
+    ).json()
+    assert follow_up["conversation_id"] == first["conversation_id"]
+    assert follow_up["intent"] == "cancellation"
+
+
+def test_emails_without_a_sender_or_thread_are_kept_apart(client):
+    one = client.post("/email", json={"body": "how do I return the doorbell"}).json()
+    two = client.post("/email", json={"body": "where is my order"}).json()
+    assert one["conversation_id"] != two["conversation_id"]
+
+
+def test_a_known_sender_still_threads_by_address(client):
+    one = client.post("/email", json={"from": "a@example.test", "body": "where is my order"}).json()
+    two = client.post("/email", json={"from": "a@example.test", "body": "any update"}).json()
+    assert one["conversation_id"] == two["conversation_id"] == "email:a@example.test"
+
+
+def test_a_body_that_is_not_a_json_object_is_a_client_error(client):
+    assert client.post("/chat", json=["not", "an", "object"]).status_code == 400
+    assert client.post("/email", json="just a string").status_code == 400
+    malformed = client.post(
+        "/chat", content=b"{not json", headers={"Content-Type": "application/json"}
+    )
+    assert malformed.status_code == 400
