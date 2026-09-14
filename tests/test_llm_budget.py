@@ -227,3 +227,62 @@ def test_the_two_calls_in_a_turn_share_one_clock():
     first = classifier_client._client.options[0]["timeout"]
     second = answer_client._client.options[0]["timeout"]
     assert second <= first  # the clock ran down; it did not reset
+
+
+LOW = Passage(
+    article_id="compatibility",
+    article_title="What Kestrel works with",
+    section="Smart home platforms",
+    text="Kestrel cameras work with Amazon Alexa and Google Home for live view.",
+    score=1.2,  # below the default 2.5 floor: a coincidental match
+)
+ANSWERABLE = {"answerable": True, "answer": "Yes, it works with that.", "sources": ["1"]}
+QUESTION = "does it work with my old wifi extender"
+
+
+def answer_engine(client):
+    return LLMAnswerEngine(Settings(), client=client, fallback=ExtractiveAnswerEngine(Settings()))
+
+
+def test_a_passage_below_the_floor_never_reaches_the_model():
+    client = claude(ANSWERABLE)
+    answer = answer_engine(client).answer(
+        QUESTION,
+        [LOW],
+        Classification(intent=Intent.PRODUCT_INFO, confidence=0.8),
+        None,
+        Deadline(budget=10.0),
+    )
+    assert client._client.calls == []  # no model call below the floor
+    assert answer.grounded is False
+    assert answer.citations == [LOW]
+
+
+def test_below_the_floor_the_contact_still_goes_to_a_person():
+    from support_agent.models import Conversation, EscalationReason
+    from support_agent.policy import decide
+
+    client = claude(ANSWERABLE)  # the model would have called it answerable
+    classification = Classification(intent=Intent.PRODUCT_INFO, confidence=0.8)
+    answer = answer_engine(client).answer(
+        QUESTION, [LOW], classification, None, Deadline(budget=10.0)
+    )
+
+    conversation = Conversation(id="c", channel=Channel.CHAT)
+    conversation.add("customer", QUESTION)
+    escalation = decide(classification, answer, conversation, Settings())
+    assert escalation.escalate
+    assert escalation.reason is EscalationReason.NO_GROUNDING
+
+
+def test_a_passage_above_the_floor_still_goes_to_the_model():
+    client = claude(ANSWERABLE)
+    answer = answer_engine(client).answer(
+        QUESTION,
+        [PASSAGE],
+        Classification(intent=Intent.BILLING, confidence=0.9),
+        None,
+        Deadline(budget=10.0),
+    )
+    assert len(client._client.calls) == 1
+    assert answer.grounded and answer.source == "llm"
