@@ -143,3 +143,17 @@ def test_a_held_message_is_journaled_as_held(tmp_path):
     rows = list(read_decisions(path))
     assert [row.classifier for row in rows] == ["heuristic", "held_for_person"]
     assert rows[1].escalated is False
+
+
+def test_mentioning_an_agent_does_not_force_a_handoff():
+    reply = say(
+        agent(),
+        "The agent I spoke to yesterday said my refund was processed, when will it show up?",
+    )
+    # Before the fix this was handed off as a request for a person, before any
+    # lookup ran. It no longer is: it is read as a refund question and goes on
+    # to retrieval. Whether retrieval then finds a grounded answer is a separate
+    # question, deliberately not pinned here.
+    assert reply.classification.wants_human is False
+    assert reply.escalation.reason is not EscalationReason.CUSTOMER_ASKED
+    assert reply.classification.intent is Intent.RETURNS_REFUND
