@@ -100,6 +100,18 @@ class SupportAgent:
         return reply
 
     def handle(self, message: InboundMessage) -> AgentReply:
+        """Handle one customer turn, one at a time per conversation.
+
+        Turns run on worker threads, so two messages on the same conversation
+        can arrive together. Each is built against that conversation's turns,
+        served passages, carried-over intent and escalation state, so they are
+        handled strictly one after the other. Other conversations are not held
+        up.
+        """
+        with self.store.turn(message.conversation_id):
+            return self._handle_turn(message)
+
+    def _handle_turn(self, message: InboundMessage) -> AgentReply:
         conversation = self.store.get_or_create(
             message.conversation_id, message.channel, message.sender
         )

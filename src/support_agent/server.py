@@ -11,6 +11,7 @@ import logging
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 
 from .agent import SupportAgent
@@ -31,6 +32,18 @@ MAX_EMPTY_TURNS = 2
 
 def _twiml(body: str) -> Response:
     return Response(content=body, media_type=TWIML_MEDIA_TYPE)
+
+
+async def _handle_in_thread(agent: SupportAgent, message: InboundMessage) -> AgentReply:
+    """Run one turn on a worker thread and await it.
+
+    ``agent.handle`` is synchronous and, on the model path, blocks on network
+    calls for up to the whole turn budget. Called directly from an async route
+    it held the event loop for that long, so every other request waited behind
+    it -- including other callers' voice turns, which Twilio abandons after
+    about fifteen seconds.
+    """
+    return await run_in_threadpool(agent.handle, message)
 
 
 def create_app(
@@ -156,7 +169,8 @@ def create_app(
                 )
             )
 
-        reply = agent.handle(
+        reply = await _handle_in_thread(
+            agent,
             InboundMessage(
                 conversation_id=call_sid,
                 channel=Channel.VOICE,
@@ -223,7 +237,8 @@ def _register_text_routes(app: FastAPI, agent: SupportAgent, twilio_form) -> Non
     async def sms(request: Request) -> Response:
         form = await twilio_form(request, "/twilio/sms")
         sender = form.get("From", "unknown")
-        reply = agent.handle(
+        reply = await _handle_in_thread(
+            agent,
             InboundMessage(
                 # One thread per phone number, not per message: a customer who
                 # texts three times in a row is having one conversation.
@@ -249,7 +264,8 @@ def _register_text_routes(app: FastAPI, agent: SupportAgent, twilio_form) -> Non
         the handoff summary shown to the agent who picked it up.
         """
         body = await _json_object(request)
-        reply = agent.handle(
+        reply = await _handle_in_thread(
+            agent,
             InboundMessage(
                 conversation_id=str(
                     body.get("conversation_id") or _new_conversation_id("chat")
@@ -273,7 +289,8 @@ def _register_text_routes(app: FastAPI, agent: SupportAgent, twilio_form) -> Non
             # Nothing ties this message to any other, so it must not join a
             # shared conversation with every other message missing a sender.
             conversation_id = _new_conversation_id("email")
-        reply = agent.handle(
+        reply = await _handle_in_thread(
+            agent,
             InboundMessage(
                 conversation_id=conversation_id,
                 channel=Channel.EMAIL,
