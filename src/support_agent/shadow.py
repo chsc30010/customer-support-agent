@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .agent import SupportAgent
+from .agent import HELD_FOR_PERSON, SupportAgent
 from .config import Settings
 from .conversations import ConversationStore
 from .journal import Decision, DecisionJournal, read_decisions
@@ -88,6 +88,10 @@ def replay(
         if limit is not None and report.replayed >= limit:
             break
         if not recorded.text.strip():
+            continue
+        if recorded.classifier == HELD_FOR_PERSON:
+            # A person owned the conversation, so the agent made no decision
+            # here. Replaying the turn would invent a disagreement with one.
             continue
 
         shadow = agent.handle(

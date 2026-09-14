@@ -93,3 +93,10 @@ def test_an_empty_journal_renders_without_dividing_by_zero(tmp_path):
     report = replay(path, SETTINGS)
     assert report.intent_agreement == 0.0
     assert "Nothing in the journal" in render(report, SETTINGS)
+
+
+def test_turns_held_for_a_person_are_not_replayed(tmp_path):
+    # The agent made no decision on these, so there is nothing to compare.
+    held = decision("any news on my order", False, "none")
+    held.classifier = "held_for_person"
+    assert replay(write(tmp_path, [held]), SETTINGS).replayed == 0

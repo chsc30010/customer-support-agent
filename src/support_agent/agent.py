@@ -21,7 +21,9 @@ from .llm import Deadline
 from .models import (
     AgentReply,
     Answer,
+    Classification,
     Conversation,
+    Escalation,
     EscalationReason,
     InboundMessage,
     Intent,
@@ -30,6 +32,12 @@ from .models import (
 log = logging.getLogger(__name__)
 
 TOP_K = 3
+
+#: The classifier source recorded for a message the bot deliberately did not
+#: handle, because a person already has the conversation. The decision journal
+#: and the shadow replay both key off it.
+HELD_FOR_PERSON = "held_for_person"
+
 #: A short follow-up ("the second one", "still not working") retrieves badly on
 #: its own, so it is searched together with what came before it.
 FOLLOW_UP_WORDS = 8
@@ -57,12 +65,49 @@ class SupportAgent:
     def greeting(self, channel) -> str:
         return phrases.GREETING[channel]
 
+    def _hold_for_person(
+        self, message: InboundMessage, conversation: Conversation, started: float
+    ) -> AgentReply:
+        """Handle a message on a conversation a person already owns.
+
+        A handoff used to change nothing about the next message: the bot
+        classified and answered it as though nobody had picked the contact up,
+        and from the fourth customer turn the looping rule filed a fresh
+        escalation for every further text. Now the bot steps aside. The message
+        stays on the transcript for the person who has it and the customer is
+        told so -- nothing is classified, answered or escalated again.
+        """
+        text = phrases.WITH_A_PERSON[conversation.channel.is_realtime]
+        conversation.add("agent", text)
+        reply = AgentReply(
+            conversation_id=conversation.id,
+            channel=conversation.channel,
+            text=text,
+            classification=Classification(
+                intent=conversation.last_intent,
+                confidence=0.0,
+                source=HELD_FOR_PERSON,
+            ),
+            escalation=Escalation(escalate=False),
+            expects_reply=False,
+        )
+        self.journal.record(
+            message,
+            reply,
+            conversation,
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
+        return reply
+
     def handle(self, message: InboundMessage) -> AgentReply:
         conversation = self.store.get_or_create(
             message.conversation_id, message.channel, message.sender
         )
         conversation.add("customer", message.text)
         started = time.monotonic()
+
+        if conversation.escalated:
+            return self._hold_for_person(message, conversation, started)
 
         # One clock for the whole turn. Classification and drafting are two
         # sequential model calls on the LLM path, and the transport does not
