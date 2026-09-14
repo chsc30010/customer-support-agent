@@ -49,11 +49,19 @@ class ConversationStore:
         return len(self._conversations)
 
     def _expire(self) -> None:
+        """Drop conversations that have been silent for longer than the TTL.
+
+        Counted from the last activity, not the start. Measuring from
+        started_at threw away every conversation two hours after its first
+        message, however recently the customer had written -- and with it the
+        carried-over intent, the record of what had already been sent, and the
+        turn count the looping rule depends on.
+        """
         cutoff = datetime.now(timezone.utc) - self._ttl
         stale = [
             key
             for key, conversation in self._conversations.items()
-            if conversation.started_at < cutoff
+            if conversation.last_activity < cutoff
         ]
         for key in stale:
             del self._conversations[key]
