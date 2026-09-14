@@ -194,3 +194,65 @@ def test_a_body_that_is_not_a_json_object_is_a_client_error(client):
         "/chat", content=b"{not json", headers={"Content-Type": "application/json"}
     )
     assert malformed.status_code == 400
+
+
+PREFIXED_BASE = BASE + "/support"
+
+
+def action_url(twiml_body):
+    """The callback URL a <Gather> tells Twilio to call next."""
+    return twiml_body.split('action="', 1)[1].split('"', 1)[0]
+
+
+def prefixed():
+    config = settings(public_base_url=PREFIXED_BASE)
+    return TestClient(create_app(settings=config)), config
+
+
+def test_the_greeting_callback_is_absolute_under_a_path_prefix():
+    client, config = prefixed()
+    body = post_signed(client, "/twilio/voice", {"CallSid": "CA20"}, config).text
+    assert action_url(body) == PREFIXED_BASE + "/twilio/voice/turn"
+
+
+def test_a_re_prompt_keeps_its_counter_on_the_absolute_url():
+    client, config = prefixed()
+    body = post_signed(client, "/twilio/voice/turn", {"CallSid": "CA21"}, config).text
+    assert action_url(body) == PREFIXED_BASE + "/twilio/voice/turn?empty=1"
+
+
+def test_an_answered_turn_callback_is_absolute_too():
+    client, config = prefixed()
+    body = post_signed(
+        client,
+        "/twilio/voice/turn",
+        {"CallSid": "CA22", "SpeechResult": "how do I get a return label"},
+        config,
+    ).text
+    assert action_url(body) == PREFIXED_BASE + "/twilio/voice/turn"
+
+
+def test_twilio_calling_the_url_it_was_given_passes_verification():
+    """The failure this fixes: Twilio calls whatever URL the Gather names.
+
+    Take that URL straight from the response, sign exactly it, and send the
+    next turn. With root-relative callbacks, the URL Twilio was given dropped
+    the /support prefix and could never match what the app verifies.
+    """
+    client, config = prefixed()
+    first = post_signed(client, "/twilio/voice/turn", {"CallSid": "CA23"}, config).text
+    given = action_url(first)
+    assert given.startswith(PREFIXED_BASE + "/")  # absolute, prefix intact
+
+    params = {"CallSid": "CA23"}
+    header = signature.sign_for_testing(TOKEN, given, params)
+    response = client.post(
+        given[len(PREFIXED_BASE):], data=params, headers={"X-Twilio-Signature": header}
+    )
+    assert response.status_code == 200
+
+
+def test_without_a_base_url_callbacks_stay_relative():
+    local = TestClient(create_app(settings=Settings(allow_unsigned_webhooks=True)))
+    body = local.post("/twilio/voice", data={"CallSid": "CA24"}).text
+    assert action_url(body) == "/twilio/voice/turn"
