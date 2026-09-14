@@ -87,9 +87,23 @@ class Settings:
 
     @property
     def llm_enabled(self) -> bool:
-        if self.llm_provider == "anthropic":
-            return bool(self.anthropic_api_key)
-        return False
+        """Whether the model path can actually run, not just whether it was asked for.
+
+        This used to be true only when ANTHROPIC_API_KEY was set. The client is
+        built with a bare ``anthropic.Anthropic()``, which also accepts
+        ANTHROPIC_AUTH_TOKEN and ``ant auth login`` profiles, so valid
+        credentials of those kinds silently left the model off. It also counted
+        a key on its own as enough even with the anthropic package missing,
+        which built the model path only for it to fall back on every call. So
+        ask the client: it is the thing that has to work.
+        """
+        if self.llm_provider != "anthropic":
+            return False
+        # Imported here rather than at module level, because llm.py imports
+        # this module.
+        from .llm import ClaudeClient
+
+        return ClaudeClient(self).available
 
     @property
     def can_verify_webhooks(self) -> bool:
