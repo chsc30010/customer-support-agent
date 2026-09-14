@@ -105,6 +105,36 @@ def test_poor_speech_recognition_lowers_confidence():
     assert muddy.confidence < clear.confidence
 
 
+def test_borderline_recognition_never_raises_confidence():
+    # Between 0.5 and 0.6 the old factor was above 1, so a borderline-misheard
+    # phrase outscored the same phrase heard clearly.
+    clear = classifier.classify(message("I forgot my password", speech_confidence=0.95))
+    for heard in (0.51, 0.55, 0.59):
+        borderline = classifier.classify(
+            message("I forgot my password", speech_confidence=heard)
+        )
+        assert borderline.confidence < clear.confidence, heard
+
+
+def test_the_discount_has_no_jump_at_the_threshold():
+    just_below = classifier.classify(message("I forgot my password", speech_confidence=0.599))
+    at_threshold = classifier.classify(message("I forgot my password", speech_confidence=0.6))
+    assert just_below.confidence <= at_threshold.confidence
+
+
+def test_confidence_never_exceeds_one():
+    # Strong enough that, before the discount, confidence is about 0.94 -- so
+    # the old factor of 1.09 at 0.59 pushed it past 1.0.
+    strong = (
+        "I forgot my password, I am locked out, cannot log in, need to reset my "
+        "password, my two factor verification code is not arriving and I have "
+        "no account access"
+    )
+    for heard in (None, 0.2, 0.55, 0.59, 0.6, 0.95):
+        result = classifier.classify(message(strong, speech_confidence=heard))
+        assert 0.0 <= result.confidence <= 1.0, heard
+
+
 def test_short_follow_up_inherits_the_previous_intent():
     conversation = Conversation(id="t", channel=Channel.VOICE)
     conversation.last_intent = Intent.TECHNICAL_ISSUE
