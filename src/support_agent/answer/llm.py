@@ -71,6 +71,15 @@ class LLMAnswerEngine(AnswerEngine):
         if not passages:
             return Answer(text="", grounded=False, source=self.name)
 
+        best = passages[0]
+        if best.score < self.settings.min_retrieval_score:
+            # The same floor the extractive engine applies. Without it, a
+            # passage that was only a coincidental match went to the model, and
+            # if the model called the question answerable the reply was marked
+            # grounded -- so the no-grounding handoff never fired. Below the
+            # floor there is no model call to pay for and no judgement to trust.
+            return Answer(text="", citations=[best], grounded=False, source=self.name)
+
         data = self.client.json_call(
             system=SYSTEM,
             prompt=self._prompt(question, passages, conversation),
