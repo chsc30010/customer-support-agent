@@ -8,6 +8,7 @@ Every route does the same three things -- turn a transport payload into an
 from __future__ import annotations
 
 import logging
+import uuid
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
@@ -181,6 +182,26 @@ def _reply_payload(reply: AgentReply) -> dict:
     return rendered
 
 
+async def _json_object(request: Request) -> dict:
+    """Read a JSON body that must be an object.
+
+    ``body.get`` on a list or a string raises, and malformed JSON raises while
+    decoding -- both used to surface as a 500 with a traceback rather than as
+    the client error they are.
+    """
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Request body must be valid JSON.") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Request body must be a JSON object.")
+    return body
+
+
+def _new_conversation_id(prefix: str) -> str:
+    return f"{prefix}:{uuid.uuid4().hex}"
+
+
 def _register_text_routes(app: FastAPI, agent: SupportAgent, twilio_form) -> None:
     @app.post("/twilio/sms")
     async def sms(request: Request) -> Response:
@@ -203,11 +224,20 @@ def _register_text_routes(app: FastAPI, agent: SupportAgent, twilio_form) -> Non
 
     @app.post("/chat")
     async def chat(request: Request) -> JSONResponse:
-        """The web widget. Put your own session auth in front of this."""
-        body = await request.json()
+        """The web widget. Put your own session auth in front of this.
+
+        A request without ``conversation_id`` starts a new conversation, and
+        the id comes back in the response for the widget to send next time.
+        It used to fall back to one shared ``chat:anonymous`` conversation,
+        which merged unrelated customers into a single transcript -- including
+        the handoff summary shown to the agent who picked it up.
+        """
+        body = await _json_object(request)
         reply = agent.handle(
             InboundMessage(
-                conversation_id=str(body.get("conversation_id") or "chat:anonymous"),
+                conversation_id=str(
+                    body.get("conversation_id") or _new_conversation_id("chat")
+                ),
                 channel=Channel.CHAT,
                 text=str(body.get("text", "")),
                 sender=str(body.get("customer_ref", "")),
@@ -217,11 +247,19 @@ def _register_text_routes(app: FastAPI, agent: SupportAgent, twilio_form) -> Non
 
     @app.post("/email")
     async def email(request: Request) -> JSONResponse:
-        body = await request.json()
-        sender = str(body.get("from", "unknown"))
+        body = await _json_object(request)
+        sender = str(body.get("from") or "")
+        if body.get("thread_id"):
+            conversation_id = str(body["thread_id"])
+        elif sender:
+            conversation_id = f"email:{sender}"
+        else:
+            # Nothing ties this message to any other, so it must not join a
+            # shared conversation with every other message missing a sender.
+            conversation_id = _new_conversation_id("email")
         reply = agent.handle(
             InboundMessage(
-                conversation_id=str(body.get("thread_id") or f"email:{sender}"),
+                conversation_id=conversation_id,
                 channel=Channel.EMAIL,
                 text="\n".join(
                     part
